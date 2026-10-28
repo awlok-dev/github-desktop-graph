@@ -198,6 +198,9 @@ class UpdateStore {
    *                       attempt to retrieve the latest available deployment.
    */
   public async checkForUpdates(inBackground: boolean, skipGuidCheck: boolean) {
+    if (__RELEASE_CHANNEL__ === 'portable') {
+      return
+    }
     // An update has been downloaded and the app is waiting to be restarted.
     // Checking for updates again may result in the running app being nuked
     // when it finds a subsequent update on Windows, or the "Quit and Update"

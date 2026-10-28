@@ -1,0 +1,77 @@
+name: Windows portable graph
+
+on:
+  push:
+    branches: [fix/portable-graph-view]
+    tags: ['v*-graph.*']
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Publish a versioned portable release after verification
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  portable:
+    runs-on: windows-2022
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .node-version
+          cache: yarn
+      - run:
+          node vendor/yarn-1.21.1.js install --frozen-lockfile --non-interactive
+      - name: Check types and graph regressions
+        run: |
+          node node_modules/typescript/bin/tsc --noEmit
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node vendor/yarn-1.21.1.js test app/test/unit/git/commit-graph-test.ts app/test/unit/git/merge-test.ts
+      - run: node vendor/yarn-1.21.1.js build:portable
+      - run: node vendor/yarn-1.21.1.js test:portable
+      - run: node vendor/yarn-1.21.1.js package:portable
+      - uses: actions/upload-artifact@v7
+        with:
+          name: windows-portable-graph
+          path: |
+            dist/GitHubDesktopGraph-Portable-Windows-x64-*.zip
+            dist/GitHubDesktopGraph-Portable-Windows-x64-*.zip.sha256
+          if-no-files-found: error
+      - name: Upload UI verification screenshot
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: portable-graph-ui
+          path: dist/portable-graph-*.png
+          if-no-files-found: ignore
+
+  release:
+    needs: portable
+    if: >-
+      startsWith(github.ref, 'refs/tags/') || (github.event_name ==
+      'workflow_dispatch' && inputs.publish) || (github.event_name == 'push' &&
+      contains(github.event.head_commit.message, '[release]'))
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v7
+        with:
+          name: windows-portable-graph
+          path: release-assets
+      - name: Publish portable ZIP and checksum
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version=$(node -p "require('./app/package.json').version")
+          gh release create "v${version}" release-assets/* \
+            --target "$GITHUB_SHA" \
+            --title "GitHub Desktop Graph Portable ${version}" \
+            --notes-file docs/releases/3.6.10-graph.1.md

@@ -1,4 +1,12 @@
-# [GitHub Desktop](https://desktop.github.com)
+# GitHub Desktop Graph Portable
+
+This fork adds a working **Graph** tab, branch context-menu actions, and a
+self-contained Windows x64 portable ZIP. See the [portable guide](docs/portable.md)
+for downloads, usage, upgrades, and build instructions.
+
+[Download releases](https://github.com/awlok-dev/github-desktop-graph/releases)
+
+## Upstream GitHub Desktop
 
 [GitHub Desktop](https://desktop.github.com/) is an open-source [Electron](https://www.electronjs.org/)-based
 GitHub app. It is written in [TypeScript](https://www.typescriptlang.org) and

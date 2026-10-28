@@ -1,13 +1,13 @@
 {
-  "name": "desktop",
-  "productName": "GitHub Desktop",
+  "name": "github-desktop-graph-portable",
+  "productName": "GitHub Desktop Graph",
   "bundleID": "com.github.GitHubClient",
   "companyName": "GitHub, Inc.",
-  "version": "3.6.10",
-  "main": "./main.js",
+  "version": "3.6.10-graph.1",
+  "main": "./portable-main.js",
   "repository": {
     "type": "git",
-    "url": "https://github.com/desktop/desktop.git"
+    "url": "https://github.com/awlok-dev/github-desktop-graph.git"
   },
   "description": "Simple collaboration from your desktop",
   "author": {

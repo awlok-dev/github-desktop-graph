@@ -89,6 +89,9 @@ class UpdateInfo extends React.Component<IUpdateInfoProps> {
  */
 export class About extends React.Component<IAboutProps> {
   private get canCheckForUpdates() {
+    if (__RELEASE_CHANNEL__ === 'portable') {
+      return false
+    }
     return (
       __RELEASE_CHANNEL__ !== 'development' ||
       this.props.allowDevelopment === true
@@ -142,6 +145,14 @@ export class About extends React.Component<IAboutProps> {
   }
 
   private renderUpdateDetails() {
+    if (__RELEASE_CHANNEL__ === 'portable') {
+      return (
+        <p>
+          Portable edition. Settings are saved in the Data folder beside the
+          app. To update, replace the app files and keep your Data folder.
+        </p>
+      )
+    }
     if (__LINUX__) {
       return null
     }

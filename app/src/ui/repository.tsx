@@ -8,6 +8,7 @@ import { NoChanges } from './changes/no-changes'
 import { MultipleSelection } from './changes/multiple-selection'
 import { FilesChangedBadge } from './changes/files-changed-badge'
 import { SelectedCommits, CompareSidebar } from './history'
+import { CommitGraph } from './history/commit-graph'
 import { Resizable } from './resizable'
 import { TabBar } from './tab-bar'
 import {
@@ -148,11 +149,6 @@ interface IRepositoryViewState {
   readonly compareListScrollTop: number
 }
 
-const enum Tab {
-  Changes = 0,
-  History = 1,
-}
-
 export class RepositoryView extends React.Component<
   IRepositoryViewProps,
   IRepositoryViewState
@@ -215,10 +211,7 @@ export class RepositoryView extends React.Component<
   }
 
   private renderTabs(): JSX.Element {
-    const selectedTab =
-      this.props.state.selectedSection === RepositorySectionTab.Changes
-        ? Tab.Changes
-        : Tab.History
+    const selectedTab = this.props.state.selectedSection
 
     return (
       <TabBar selectedIndex={selectedTab} onTabClicked={this.onTabClicked}>
@@ -230,6 +223,7 @@ export class RepositoryView extends React.Component<
         <div className="with-indicator" id="history-tab">
           <span>History</span>
         </div>
+        <span id="graph-tab">Graph</span>
       </TabBar>
     )
   }
@@ -389,7 +383,10 @@ export class RepositoryView extends React.Component<
 
     if (selectedSection === RepositorySectionTab.Changes) {
       return this.renderChangesSidebar()
-    } else if (selectedSection === RepositorySectionTab.History) {
+    } else if (
+      selectedSection === RepositorySectionTab.History ||
+      selectedSection === RepositorySectionTab.Graph
+    ) {
       return this.renderCompareSidebar()
     } else {
       return assertNever(selectedSection, 'Unknown repository section')
@@ -476,6 +473,30 @@ export class RepositoryView extends React.Component<
   }
 
   private renderContentForHistory(): JSX.Element {
+    if (this.props.state.selectedSection === RepositorySectionTab.Graph) {
+      const { branchesState, commitLookup } = this.props.state
+      const currentBranch =
+        branchesState.tip.kind === TipState.Valid
+          ? branchesState.tip.branch
+          : null
+
+      return (
+        <CommitGraph
+          key={this.props.repository.id}
+          repository={this.props.repository}
+          dispatcher={this.props.dispatcher}
+          branches={branchesState.allBranches}
+          currentBranch={currentBranch}
+          commitLookup={commitLookup}
+          onViewCommitOnGitHub={this.props.onViewCommitOnGitHub}
+          onCherryPick={this.props.onCherryPick}
+          askForConfirmationOnCheckoutCommit={
+            this.props.askForConfirmationOnCheckoutCommit
+          }
+        />
+      )
+    }
+
     const { commitSelection, commitLookup, localCommitSHAs } = this.props.state
     const { changesetData, file, diff, shas, shasInDiff, isContiguous } =
       commitSelection
@@ -635,7 +656,10 @@ export class RepositoryView extends React.Component<
     const selectedSection = this.props.state.selectedSection
     if (selectedSection === RepositorySectionTab.Changes) {
       return this.renderContentForChanges()
-    } else if (selectedSection === RepositorySectionTab.History) {
+    } else if (
+      selectedSection === RepositorySectionTab.History ||
+      selectedSection === RepositorySectionTab.Graph
+    ) {
       return this.renderContentForHistory()
     } else {
       return assertNever(selectedSection, 'Unknown repository section')
@@ -693,33 +717,24 @@ export class RepositoryView extends React.Component<
       return
     }
 
-    // Toggle tab selection on Ctrl+Tab. Note that we don't care
-    // about the shift key here, we can get away with that as long
-    // as there's only two tabs.
+    // Cycle all repository sections in either direction.
     if (event.ctrlKey && event.key === 'Tab') {
-      this.changeTab()
+      this.changeTab(event.shiftKey)
       event.preventDefault()
     }
   }
 
-  private changeTab() {
-    const section =
-      this.props.state.selectedSection === RepositorySectionTab.History
-        ? RepositorySectionTab.Changes
-        : RepositorySectionTab.History
-
-    this.props.dispatcher.changeRepositorySection(
-      this.props.repository,
-      section
-    )
+  private changeTab(backwards: boolean) {
+    const tabs = [
+      RepositorySectionTab.Changes,
+      RepositorySectionTab.History,
+      RepositorySectionTab.Graph,
+    ]
+    const current = tabs.indexOf(this.props.state.selectedSection)
+    this.onTabClicked(tabs[(current + (backwards ? 2 : 1)) % tabs.length])
   }
 
-  private onTabClicked = (tab: Tab) => {
-    const section =
-      tab === Tab.History
-        ? RepositorySectionTab.History
-        : RepositorySectionTab.Changes
-
+  private onTabClicked = (section: RepositorySectionTab) => {
     this.props.dispatcher.changeRepositorySection(
       this.props.repository,
       section

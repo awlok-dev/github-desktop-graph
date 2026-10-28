@@ -447,6 +447,9 @@ export class AppWindow {
   }
 
   public async checkForUpdates(url: string) {
+    if (__RELEASE_CHANNEL__ === 'portable') {
+      return undefined
+    }
     try {
       autoUpdater.setFeedURL({ url: await trySetUpdaterGuid(url) })
       autoUpdater.checkForUpdates()

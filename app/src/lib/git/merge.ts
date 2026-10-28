@@ -20,6 +20,8 @@ export enum MergeResult {
 }
 
 export type MergeOptions = {
+  /** Refuse to create a merge commit when the branches have diverged. */
+  readonly fastForwardOnly?: boolean
   /** Whether to perform a squash merge */
   readonly squash?: boolean
   /** Whether to bypass pre-merge and post-merge hooks */
@@ -39,6 +41,10 @@ export async function merge(
     : undefined
 
   const args = ['merge']
+
+  if (options?.fastForwardOnly) {
+    args.push('--ff-only')
+  }
 
   if (options?.squash) {
     args.push('--squash')

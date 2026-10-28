@@ -95,6 +95,9 @@ export function getWindowsDeltaNugetPackagePath() {
 }
 
 export function getWindowsIdentifierName() {
+  if (getChannel() === 'portable') {
+    return 'GitHubDesktopGraph'
+  }
   return 'GitHubDesktop'
 }
 

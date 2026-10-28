@@ -1,4 +1,5 @@
 import * as Path from 'path'
+import { fastForwardBranch } from '../git/fast-forward-branch'
 import { writeFile } from 'fs/promises'
 import {
   AccountsStore,
@@ -3365,7 +3366,10 @@ export class AppStore extends TypedBaseStore<IAppState> {
     })
     this.emitUpdate()
 
-    if (selectedSection === RepositorySectionTab.History) {
+    if (
+      selectedSection === RepositorySectionTab.History ||
+      selectedSection === RepositorySectionTab.Graph
+    ) {
       await this.refreshHistorySection(repository)
     } else if (selectedSection === RepositorySectionTab.Changes) {
       await this.refreshChangesSection(repository, {
@@ -4115,7 +4119,10 @@ export class AppStore extends TypedBaseStore<IAppState> {
     const section = state.selectedSection
     let refreshSectionPromise: Promise<void>
 
-    if (section === RepositorySectionTab.History) {
+    if (
+      section === RepositorySectionTab.History ||
+      section === RepositorySectionTab.Graph
+    ) {
       refreshSectionPromise = this.refreshHistorySection(repository)
     } else if (section === RepositorySectionTab.Changes) {
       refreshSectionPromise = this.refreshChangesSection(repository, {
@@ -5640,6 +5647,19 @@ export class AppStore extends TypedBaseStore<IAppState> {
         }
       }
     })
+  }
+
+  /** This shouldn't be called directly. See `Dispatcher`. */
+  public async _fastForwardBranch(
+    repository: Repository,
+    current: Branch,
+    target: Branch
+  ): Promise<void> {
+    const gitStore = this.gitStoreCache.get(repository)
+    await gitStore.performFailableOperation(() =>
+      fastForwardBranch(repository, current, target)
+    )
+    await this._refreshRepository(repository)
   }
 
   private async fastForwardBranches(repository: Repository) {

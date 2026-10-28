@@ -342,7 +342,9 @@ app.on('ready', () => {
 
   readyTime = now() - launchTime
 
-  possibleProtocols.forEach(protocol => setAsDefaultProtocolClient(protocol))
+  if (!app.commandLine.hasSwitch('no-protocol-registration')) {
+    possibleProtocols.forEach(protocol => setAsDefaultProtocolClient(protocol))
+  }
 
   createWindow()
 

@@ -91,6 +91,10 @@ copyEmoji()
 
 console.log('Copying static resources…')
 copyStaticResources()
+cpSync(
+  join(projectRoot, 'app', 'portable-main.js'),
+  join(outRoot, 'portable-main.js')
+)
 
 console.log('Parsing license metadata…')
 generateLicenseMetadata(outRoot)

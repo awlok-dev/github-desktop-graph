@@ -398,7 +398,8 @@ export class App extends React.Component<IAppProps, IAppState> {
     // We only want to automatically check for updates on beta and prod
     if (
       __RELEASE_CHANNEL__ !== 'development' &&
-      __RELEASE_CHANNEL__ !== 'test'
+      __RELEASE_CHANNEL__ !== 'test' &&
+      __RELEASE_CHANNEL__ !== 'portable'
     ) {
       setInterval(() => this.checkForUpdates(true), UpdateCheckInterval)
       this.checkForUpdates(true)
@@ -660,7 +661,11 @@ export class App extends React.Component<IAppProps, IAppState> {
     inBackground: boolean,
     skipGuidCheck: boolean = false
   ) {
-    if (__LINUX__ || __RELEASE_CHANNEL__ === 'development') {
+    if (
+      __LINUX__ ||
+      __RELEASE_CHANNEL__ === 'development' ||
+      __RELEASE_CHANNEL__ === 'portable'
+    ) {
       return
     }
 

@@ -1,10 +1,13 @@
 {
   "repository": {
     "type": "git",
-    "url": "https://github.com/desktop/desktop.git"
+    "url": "https://github.com/awlok-dev/github-desktop-graph.git"
   },
   "description": "GitHub Desktop build dependencies",
   "scripts": {
+    "build:portable": "cross-env RELEASE_CHANNEL=portable yarn build:prod",
+    "package:portable": "powershell -NoProfile -ExecutionPolicy Bypass -File script/package-portable.ps1",
+    "test:portable": "node script/test-portable-graph.mjs",
     "cli": "ts-node app/src/cli/main.ts",
     "check:eslint": "tsc -P eslint-rules/",
     "test:eslint": "node script/test.mjs eslint-rules",

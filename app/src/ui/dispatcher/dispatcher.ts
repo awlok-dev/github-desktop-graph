@@ -1304,6 +1304,15 @@ export class Dispatcher {
   }
 
   /** Merge the named branch into the current branch. */
+  public fastForwardBranch(
+    repository: Repository,
+    current: Branch,
+    target: Branch
+  ): Promise<void> {
+    return this.appStore._fastForwardBranch(repository, current, target)
+  }
+
+  /** Merge the named branch into the current branch. */
   public mergeBranch(
     repository: Repository,
     branch: Branch,
