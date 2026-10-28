@@ -28,6 +28,15 @@ Copy-Item -LiteralPath (Join-Path $projectRoot 'LICENSE') -Destination (Join-Pat
 } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $appRoot 'build-info.json') -Encoding UTF8
 
 Compress-Archive -LiteralPath $appRoot -DestinationPath $archivePath -CompressionLevel Optimal -Force
-$hash = (Get-FileHash -LiteralPath $archivePath -Algorithm SHA256).Hash.ToLowerInvariant()
+# Use .NET directly so checksum generation also works when a parent PowerShell
+# version changes the child process's module search paths on hosted runners.
+$hasher = [System.Security.Cryptography.SHA256]::Create()
+$archiveStream = [System.IO.File]::OpenRead($archivePath)
+try {
+  $hash = [System.BitConverter]::ToString($hasher.ComputeHash($archiveStream)).Replace('-', '').ToLowerInvariant()
+} finally {
+  $archiveStream.Dispose()
+  $hasher.Dispose()
+}
 "$hash  $archiveName" | Set-Content -LiteralPath "$archivePath.sha256" -Encoding ASCII
 Write-Output $archivePath
