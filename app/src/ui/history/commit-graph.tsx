@@ -16,6 +16,10 @@ import {
 import { IMenuItem, showContextualMenu } from '../../lib/menu-item'
 import { clipboard } from 'electron'
 import { defaultErrorHandler, Dispatcher } from '../dispatcher'
+import {
+  CommitGraphChanges,
+  ICommitGraphChangesOptions,
+} from './commit-graph-changes'
 
 const GraphColors = [
   '#4fa7ff',
@@ -43,6 +47,7 @@ interface ICommitGraphProps {
     commits: ReadonlyArray<CommitOneLine>
   ) => void
   readonly askForConfirmationOnCheckoutCommit: boolean
+  readonly changesOptions: ICommitGraphChangesOptions
 }
 
 interface ICommitGraphState {
@@ -459,18 +464,6 @@ export class CommitGraph extends React.Component<
     }
   }
 
-  private onCopySelected = () => {
-    if (this.state.selectedSha !== null) {
-      clipboard.writeText(this.state.selectedSha)
-    }
-  }
-
-  private onViewSelected = () => {
-    if (this.state.selectedSha !== null) {
-      this.props.onViewCommitOnGitHub(this.state.selectedSha)
-    }
-  }
-
   private onFilterChanged = (event: React.ChangeEvent<HTMLInputElement>) => {
     this.setState({ filter: event.currentTarget.value })
   }
@@ -604,24 +597,20 @@ export class CommitGraph extends React.Component<
     const { commit } = selected
     const formattedDate = new Date(commit.date).toLocaleString()
     return (
-      <div className="commit-graph-details">
-        <div className="commit-graph-detail-summary">{commit.summary}</div>
-        <div className="commit-graph-detail-meta">
-          {commit.author} · {formattedDate} · {commit.sha.slice(0, 12)}
-        </div>
-        <div className="commit-graph-detail-actions">
-          <button type="button" onClick={this.onCopySelected}>
-            Copy SHA
-          </button>
-          <button
-            type="button"
-            disabled={this.props.repository.gitHubRepository === null}
-            onClick={this.onViewSelected}
-          >
-            View on GitHub
-          </button>
-        </div>
-      </div>
+      <section className="commit-graph-details" aria-label="Commit changes">
+        <header
+          className="commit-graph-detail-summary"
+          title={`${commit.author} · ${formattedDate} · ${commit.sha}`}
+        >
+          <strong>{commit.summary}</strong>
+          <span className="commit-graph-sha">{commit.sha.slice(0, 7)}</span>
+        </header>
+        <CommitGraphChanges
+          repository={this.props.repository}
+          sha={commit.sha}
+          {...this.props.changesOptions}
+        />
+      </section>
     )
   }
 

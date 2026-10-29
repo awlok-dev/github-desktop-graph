@@ -488,6 +488,15 @@ export class RepositoryView extends React.Component<
           branches={branchesState.allBranches}
           currentBranch={currentBranch}
           commitLookup={commitLookup}
+          changesOptions={{
+            hideWhitespaceInDiff: this.props.hideWhitespaceInHistoryDiff,
+            showSideBySideDiff: this.props.showSideBySideDiff,
+            imageDiffType: this.props.imageDiffType,
+            onOpenBinaryFile: this.onOpenBinaryFile,
+            onOpenSubmodule: this.onOpenSubmodule,
+            onOpenInExternalEditor: this.props.onOpenInExternalEditor,
+            onDiffOptionsOpened: this.onDiffOptionsOpened,
+          }}
           onViewCommitOnGitHub={this.props.onViewCommitOnGitHub}
           onCherryPick={this.props.onCherryPick}
           askForConfirmationOnCheckoutCommit={

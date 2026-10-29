@@ -74,4 +74,4 @@ jobs:
           gh release create "v${version}" release-assets/* \
             --target "$GITHUB_SHA" \
             --title "GitHub Desktop Graph Portable ${version}" \
-            --notes-file docs/releases/3.6.10-graph.1.md
+            --notes-file "docs/releases/${version}.md"

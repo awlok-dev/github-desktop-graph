@@ -147,34 +147,58 @@
     color: var(--error-color);
   }
   .commit-graph-details {
-    flex: 0 0 auto;
-    padding: 12px 16px;
+    display: flex;
+    flex-direction: column;
+    flex: 0 0 50%;
     border-top: 1px solid var(--box-border-color);
-    min-height: 105px;
+    min-height: 180px;
+    min-width: 0;
+    overflow: hidden;
   }
   .commit-graph-detail-summary {
-    font-weight: 600;
-  }
-  .commit-graph-detail-meta {
-    margin-top: 7px;
-    opacity: 0.65;
-    font-size: 12px;
-  }
-  .commit-graph-detail-actions {
     display: flex;
+    flex: 0 0 auto;
+    align-items: center;
     gap: 8px;
-    margin-top: 10px;
-    button {
-      padding: 4px 8px;
-      border: 1px solid var(--box-border-color);
-      border-radius: 4px;
-      color: var(--text-color);
-      background: var(--box-background-color);
-      cursor: pointer;
-      &:disabled {
-        opacity: 0.4;
-        cursor: default;
-      }
+    padding: 8px 12px;
+    border-bottom: var(--base-border);
+
+    strong {
+      flex: 1;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
+  }
+
+  .commit-graph-changes {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+    min-width: 0;
+
+    .file-list {
+      display: flex;
+      flex: 1;
+      min-height: 0;
+    }
+
+    .file-list-header {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px 8px;
+      padding: 8px 10px;
+      border-bottom: var(--base-border);
+    }
+  }
+
+  .graph-change-counts {
+    color: var(--text-secondary-color);
+  }
+
+  .graph-changes-message {
+    padding: 12px;
+    overflow: auto;
   }
 }

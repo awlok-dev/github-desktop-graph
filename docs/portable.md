@@ -16,6 +16,11 @@ Future Windows versions need separate compatibility testing. Builds are unsigned
 ## Graph actions
 
 The graph displays local branches, remote branches, tags, and merge connections.
+Select a commit to show its changed files and diff in the bottom pane, then
+select a file to inspect it. The file list can be resized. Diff Options provides
+unified/split views and a whitespace toggle. Commits on other branches can be
+inspected without checking them out; merge changes are compared to the first
+parent. Copy SHA and View on GitHub are available in the commit's right-click menu.
 Right-click a branch label to check it out, push/pull a local branch,
 fast-forward the current branch to the selected branch, merge, or rebase the
 current branch onto the selected branch. Push/pull on another local branch

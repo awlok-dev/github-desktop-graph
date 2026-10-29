@@ -43,7 +43,11 @@ function commit(file, message) {
   git(['-c', 'commit.gpgsign=false', 'commit', '-m', message])
 }
 git(['init', '-b', 'main'])
+writeFileSync(path.join(repo, 'old-name.txt'), 'Keep this renamed content\n')
+writeFileSync(path.join(repo, 'deleted.txt'), 'Deleted historical content\n')
+git(['add', '--', '.'])
 commit('README.md', 'Initial graph commit')
+const rootSha = git(['rev-parse', 'HEAD'])
 git(['checkout', '-b', 'feature'])
 commit('feature.txt', 'Graph feature commit')
 const featureSha = git(['rev-parse', 'HEAD'])
@@ -52,6 +56,36 @@ git(['checkout', '-b', 'target'])
 commit('target.txt', 'Graph rebase target')
 const targetSha = git(['rev-parse', 'HEAD'])
 git(['checkout', 'main'])
+git(['checkout', '-b', 'changes-demo'])
+git(['mv', 'old-name.txt', 'renamed.txt'])
+git(['rm', 'deleted.txt'])
+writeFileSync(path.join(repo, 'README.md'), 'Updated README content\n')
+writeFileSync(path.join(repo, 'second.txt'), 'Second file added content\n')
+writeFileSync(path.join(repo, 'binary.bin'), Buffer.from([0, 1, 2, 3]))
+git(['add', '--', '.'])
+git(['-c', 'commit.gpgsign=false', 'commit', '-m', 'Inspect multiple files'])
+const changesSha = git(['rev-parse', 'HEAD'])
+git([
+  '-c',
+  'commit.gpgsign=false',
+  'commit',
+  '--allow-empty',
+  '-m',
+  'Empty graph test commit',
+])
+const emptySha = git(['rev-parse', 'HEAD'])
+git([
+  '-c',
+  'commit.gpgsign=false',
+  'merge',
+  '--no-ff',
+  'target',
+  '-m',
+  'Merge graph test commit',
+])
+const mergeSha = git(['rev-parse', 'HEAD'])
+git(['checkout', 'main'])
+
 git(['init', '--bare', remote])
 git(['remote', 'add', 'origin', remote])
 git(['push', '-u', 'origin', 'main'])
@@ -117,6 +151,100 @@ try {
   await page.locator('#commit-graph-view').waitFor({ state: 'hidden' })
   await page.keyboard.press('Control+Shift+Tab')
   await page.locator('#commit-graph-view').waitFor({ state: 'visible' })
+
+  const details = page.locator('.commit-graph-details')
+  const graphScroller = page.locator(
+    '.commit-graph-scroll .ReactVirtualized__Grid'
+  )
+  async function selectCommit(sha) {
+    const button = page.locator(`.commit-graph-commit[data-sha="${sha}"]`)
+    await graphScroller.evaluate(element => {
+      element.scrollTop = 0
+    })
+    await waitFor(async () => {
+      if (await button.count()) return true
+      await graphScroller.evaluate(element => {
+        element.scrollTop += 150
+      })
+      return false
+    }, `find graph commit ${sha}`)
+    await button.click()
+  }
+  async function selectFile(name) {
+    await details.getByRole('option', { name: new RegExp(`^${name} `) }).click()
+  }
+  async function assertDiff(text) {
+    await waitFor(
+      async () =>
+        (await details.locator('.diff-container').innerText()).includes(text),
+      `diff shows ${text}`
+    )
+  }
+
+  // Inspect a commit on another branch without checking out that branch.
+  await selectCommit(changesSha)
+  await details.getByText('5 changed files', { exact: false }).waitFor()
+  await selectFile('README.md')
+  await assertDiff('Updated README content')
+  await assertDiff('Initial graph commit')
+  await details
+    .getByRole('button', { name: 'Diff Options', exact: true })
+    .click()
+  await page.getByRole('radio', { name: 'Split', exact: true }).check()
+  await details
+    .locator('.side-by-side-diff-container:not(.unified-diff)')
+    .waitFor()
+  await page
+    .getByRole('checkbox', { name: 'Hide whitespace changes', exact: true })
+    .check()
+  await assertDiff('Updated README content')
+  assert.equal(
+    await page
+      .getByRole('checkbox', { name: 'Hide whitespace changes', exact: true })
+      .isChecked(),
+    true
+  )
+  await page.getByRole('radio', { name: 'Unified', exact: true }).check()
+  await page
+    .getByRole('checkbox', { name: 'Hide whitespace changes', exact: true })
+    .uncheck()
+  await details
+    .getByRole('button', { name: 'Diff Options', exact: true })
+    .click()
+  await details.locator('.side-by-side-diff-container.unified-diff').waitFor()
+  await selectFile('second.txt')
+  await assertDiff('Second file added content')
+  await selectFile('deleted.txt')
+  await assertDiff('Deleted historical content')
+  await selectFile('renamed.txt')
+  await assertDiff('The file was renamed')
+  await selectFile('binary.bin')
+  await assertDiff('This binary file has changed.')
+  await selectCommit(emptySha)
+  await details
+    .getByText('No files changed in this commit.', { exact: true })
+    .waitFor()
+  assert.equal(await details.locator('.diff-container').count(), 0)
+  await selectCommit(mergeSha)
+  await selectFile('target.txt')
+  await assertDiff('Graph rebase target')
+  await selectCommit(rootSha)
+  await selectFile('README.md')
+  await assertDiff('Initial graph commit')
+
+  // Fast selection must not leave a stale response from an earlier commit.
+  await selectCommit(changesSha)
+  await selectCommit(rootSha)
+  await selectCommit(changesSha)
+  await selectFile('README.md')
+  await assertDiff('Updated README content')
+  assert.equal(git(['symbolic-ref', '--short', 'HEAD']), 'main')
+  assert.equal(git(['status', '--porcelain']), '')
+  const bounds = await details.boundingBox()
+  assert.ok(bounds && bounds.height >= 180)
+  await page.screenshot({
+    path: path.join(root, 'dist', 'portable-graph-changes.png'),
+  })
 
   // Interact with the real native menu produced by a right-click. Select its
   // callback deterministically so this also runs on headless Windows CI.
@@ -201,7 +329,7 @@ try {
   assert.ok(existsSync(data))
   assert.equal(existsSync(path.join(appRoot, 'Data')), false)
   console.log(
-    'PASS: packaged Graph tab, tab navigation, native context menus, merge dialog, fast-forward, rebase, push, and isolated portable storage without external Git/Node on PATH'
+    'PASS: Graph tab, changed files and diffs (root, other branch, merge, empty, rename, deletion, binary, fast selection), native menus, fast-forward, rebase, push, and portable storage without external Git/Node on PATH'
   )
 } catch (error) {
   if (page) {
