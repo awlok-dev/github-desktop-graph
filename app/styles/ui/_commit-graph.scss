@@ -20,7 +20,7 @@
     strong {
       white-space: nowrap;
     }
-    input {
+    input[type='search'] {
       min-width: 80px;
       flex: 1;
       padding: 6px 9px;
@@ -28,6 +28,12 @@
       border-radius: 6px;
       background: var(--box-background-color);
       color: var(--text-color);
+    }
+    .commit-graph-density {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      white-space: nowrap;
     }
     button {
       padding: 6px 10px;
@@ -53,8 +59,8 @@
   .commit-graph-row {
     display: flex;
     align-items: center;
-    height: 46px;
-    min-width: max-content;
+    width: 100%;
+    min-width: 0;
     border-left: 3px solid transparent;
 
     &:hover {
@@ -71,11 +77,11 @@
 
   .commit-graph-commit {
     display: flex;
-    flex: 1 0 auto;
+    flex: 1;
     align-items: center;
-    gap: 10px;
-    min-width: 280px;
-    height: 46px;
+    gap: 6px;
+    min-width: 0;
+    height: 100%;
     margin: 0;
     padding: 0 6px 0 0;
     background: transparent;
@@ -98,17 +104,19 @@
   .commit-graph-summary {
     display: block;
     overflow: hidden;
-    max-width: 540px;
+    min-width: 0;
     white-space: nowrap;
     text-overflow: ellipsis;
   }
   .commit-graph-ref-list {
     display: flex;
-    gap: 6px;
+    flex: 0 0 230px;
+    justify-content: flex-end;
+    gap: 4px;
     padding-right: 10px;
   }
   .commit-graph-ref {
-    max-width: 250px;
+    max-width: 180px;
     overflow: hidden;
     padding: 3px 7px;
     border: 1px solid var(--box-border-color);
@@ -119,6 +127,10 @@
     text-overflow: ellipsis;
     white-space: nowrap;
     cursor: context-menu;
+    &.more-refs {
+      flex-shrink: 0;
+      cursor: pointer;
+    }
     &.local {
       border-color: #278d6d;
     }

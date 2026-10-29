@@ -36,7 +36,7 @@ export interface IGraphRow {
 
 export interface ICommitGraphData {
   readonly rows: ReadonlyArray<IGraphRow>
-  readonly width: number
+  readonly laneCount: number
   readonly hasMore: boolean
 }
 
@@ -223,5 +223,5 @@ export function layoutCommitGraph(
     })
   }
 
-  return { rows, width: Math.max(54, maximumColumns * 22 + 16), hasMore }
+  return { rows, laneCount: maximumColumns, hasMore }
 }

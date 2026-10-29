@@ -49,7 +49,10 @@ export class DiffHeader extends React.Component<IDiffHeaderProps, {}> {
   }
 
   private renderDiffOptions() {
-    if (this.props.diff?.kind === DiffType.Submodule) {
+    if (
+      this.props.diff?.kind === DiffType.Submodule ||
+      this.props.diff?.kind === DiffType.Image
+    ) {
       return null
     }
 

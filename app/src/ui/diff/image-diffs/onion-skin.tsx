@@ -13,7 +13,7 @@ export class OnionSkin extends React.Component<
   public constructor(props: ICommonImageDiffProperties) {
     super(props)
 
-    this.state = { crossfade: 1 }
+    this.state = { crossfade: 50 }
   }
 
   public render() {
@@ -34,6 +34,7 @@ export class OnionSkin extends React.Component<
             width: this.props.maxSize.width / 2,
           }}
           className="slider"
+          aria-label="Image overlay opacity"
           type="range"
           max={100}
           min={0}

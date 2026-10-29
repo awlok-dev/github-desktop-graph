@@ -24,6 +24,8 @@ import {
 
 import {
   getWorkingDirectoryDiff,
+  getChangedFiles,
+  getCommitDiff,
   getWorkingDirectoryImage,
   getBlobImage,
   getBinaryPaths,
@@ -139,6 +141,55 @@ describe('git/diff', () => {
   })
 
   describe('imageDiff', () => {
+    it('previews added, modified, renamed and deleted SVG commit images', async t => {
+      const repository = await setupEmptyRepository(t, 'main')
+      const before =
+        '<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><rect width="50" height="50" fill="red"/></svg>'
+      const after = before.replace('red', 'blue')
+      const readDiff = async () => {
+        const changes = await getChangedFiles(repository, 'HEAD')
+        assert.equal(changes.files.length, 1)
+        const diff = await getCommitDiff(repository, changes.files[0], 'HEAD')
+        assert(diff.kind === DiffType.Image)
+        return diff
+      }
+      await makeCommit(repository, {
+        entries: [{ path: 'drawing.SVG', contents: before }],
+      })
+      const added = await readDiff()
+      assert.equal(added.current?.mediaType, 'image/svg+xml')
+      assert.equal(added.previous, undefined)
+      await makeCommit(repository, {
+        entries: [{ path: 'drawing.SVG', contents: after }],
+      })
+      const modified = await readDiff()
+      assert.equal(
+        modified.previous?.contents,
+        Buffer.from(before).toString('base64')
+      )
+      assert.equal(
+        modified.current?.contents,
+        Buffer.from(after).toString('base64')
+      )
+      await git(
+        ['mv', 'drawing.SVG', 'renamed.svg'],
+        repository.path,
+        'rename image'
+      )
+      await makeCommit(repository, { entries: [] })
+      const renamed = await readDiff()
+      assert.equal(renamed.previous?.contents, renamed.current?.contents)
+      await makeCommit(repository, {
+        entries: [{ path: 'renamed.svg', contents: null }],
+      })
+      const deleted = await readDiff()
+      assert.equal(
+        deleted.previous?.contents,
+        Buffer.from(after).toString('base64')
+      )
+      assert.equal(deleted.current, undefined)
+    })
+
     it('changes for images are set', async t => {
       const testRepoPath = await setupFixtureRepository(
         t,

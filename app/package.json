@@ -3,7 +3,7 @@
   "productName": "GitHub Desktop Graph",
   "bundleID": "com.github.GitHubClient",
   "companyName": "GitHub, Inc.",
-  "version": "3.6.10-graph.2",
+  "version": "3.6.10-graph.3",
   "main": "./portable-main.js",
   "repository": {
     "type": "git",

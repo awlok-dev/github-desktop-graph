@@ -118,6 +118,11 @@ export async function getCommitDiff(
   commitish: string,
   hideWhitespaceInDiff: boolean = false
 ): Promise<IDiff> {
+  // SVG is textual in Git, but historical SVG changes can also be compared as
+  // images. The image viewer uses an img data URL, never inline SVG markup.
+  if (Path.extname(file.path).toLowerCase() === '.svg') {
+    return getImageDiff(repository, file, commitish, commitish)
+  }
   const args = [
     'log',
     commitish,
@@ -721,6 +726,10 @@ export async function convertDiff(
  * Map a given file extension to the related data URL media type
  */
 function getMediaType(extension: string) {
+  extension = extension.toLowerCase()
+  if (extension === '.svg') {
+    return 'image/svg+xml'
+  }
   if (extension === '.png') {
     return 'image/png'
   }

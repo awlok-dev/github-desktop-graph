@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { AutoSizer, List, ListRowProps, Dimensions } from 'react-virtualized'
+import { AutoSizer, Grid, GridCellProps, Dimensions } from 'react-virtualized'
 import { Branch, BranchType } from '../../models/branch'
 import { Commit, CommitOneLine } from '../../models/commit'
 import { Repository } from '../../models/repository'
@@ -31,9 +31,7 @@ const GraphColors = [
   '#b7c25b',
   '#58c2d1',
 ]
-const RowHeight = 46
-const ColumnWidth = 22
-const ColumnOffset = 17
+const ColumnOffset = 12
 
 interface ICommitGraphProps {
   readonly repository: Repository
@@ -58,15 +56,22 @@ interface ICommitGraphState {
   readonly selectedSha: string | null
   readonly filter: string
   readonly limit: number
+  readonly compact: boolean
 }
 
-function graphX(column: number): number {
-  return ColumnOffset + column * ColumnWidth
+function graphX(column: number, columnWidth: number): number {
+  return ColumnOffset + column * columnWidth
 }
 
-function graphPath(from: number, to: number, startY: number, endY: number) {
-  const x1 = graphX(from)
-  const x2 = graphX(to)
+function graphPath(
+  from: number,
+  to: number,
+  startY: number,
+  endY: number,
+  columnWidth: number
+) {
+  const x1 = graphX(from, columnWidth)
+  const x2 = graphX(to, columnWidth)
   const middle = startY + (endY - startY) / 2
   return `M ${x1} ${startY} C ${x1} ${middle}, ${x2} ${middle}, ${x2} ${endY}`
 }
@@ -85,7 +90,7 @@ export class CommitGraph extends React.Component<
   ICommitGraphState
 > {
   private generation = 0
-  private readonly listRef = React.createRef<List>()
+  private readonly listRef = React.createRef<Grid>()
 
   public constructor(props: ICommitGraphProps) {
     super(props)
@@ -97,6 +102,7 @@ export class CommitGraph extends React.Component<
       selectedSha: null,
       filter: '',
       limit: 350,
+      compact: true,
     }
   }
 
@@ -116,7 +122,7 @@ export class CommitGraph extends React.Component<
   }
 
   public componentDidUpdate(prevProps: ICommitGraphProps) {
-    this.listRef.current?.forceUpdateGrid()
+    this.listRef.current?.forceUpdate()
     if (
       prevProps.repository.path !== this.props.repository.path ||
       prevProps.currentBranch?.ref !== this.props.currentBranch?.ref ||
@@ -293,7 +299,10 @@ export class CommitGraph extends React.Component<
   ) => {
     event.preventDefault()
     event.stopPropagation()
+    showContextualMenu(this.getRefMenu(ref))
+  }
 
+  private getRefMenu = (ref: IGraphRef): IMenuItem[] => {
     const branch = this.findBranch(ref)
     const current = branch !== null && this.isCurrentBranch(branch)
     const localBranch = branch !== null && branch.type === BranchType.Local
@@ -360,7 +369,22 @@ export class CommitGraph extends React.Component<
       })
     }
 
-    showContextualMenu(items)
+    return items
+  }
+
+  private onMoreRefs = (event: React.MouseEvent<HTMLButtonElement>) => {
+    const row = this.state.graph?.rows.find(
+      row => row.commit.sha === event.currentTarget.dataset.sha
+    )
+    if (row !== undefined) {
+      this.setState({ selectedSha: row.commit.sha })
+      showContextualMenu(
+        row.refs.map(ref => ({
+          label: ref.name,
+          submenu: this.getRefMenu(ref),
+        }))
+      )
+    }
   }
 
   private onCommitContextMenu = (
@@ -468,8 +492,26 @@ export class CommitGraph extends React.Component<
     this.setState({ filter: event.currentTarget.value })
   }
 
-  private renderVirtualRow = ({ index, key, style }: ListRowProps) => {
-    const row = this.state.graph?.rows[index]
+  private onCompactChanged = (event: React.ChangeEvent<HTMLInputElement>) => {
+    this.setState({ compact: event.currentTarget.checked }, () =>
+      this.listRef.current?.recomputeGridSize()
+    )
+  }
+
+  private get rowHeight() {
+    return this.state.compact ? 28 : 38
+  }
+  private get columnWidth() {
+    return this.state.compact ? 10 : 18
+  }
+  private get graphWidth() {
+    return (
+      (this.state.graph?.laneCount ?? 1) * this.columnWidth + ColumnOffset * 2
+    )
+  }
+
+  private renderVirtualRow = ({ rowIndex, key, style }: GridCellProps) => {
+    const row = this.state.graph?.rows[rowIndex]
     return row === undefined ? null : (
       <div key={key} style={style}>
         {this.renderRow(row)}
@@ -478,20 +520,24 @@ export class CommitGraph extends React.Component<
   }
 
   private renderVirtualList = ({ width, height }: Dimensions) => (
-    <List
+    <Grid
       ref={this.listRef}
       width={width}
       height={height}
       rowCount={this.state.graph?.rows.length ?? 0}
-      rowHeight={RowHeight}
-      rowRenderer={this.renderVirtualRow}
+      rowHeight={this.rowHeight}
+      columnCount={1}
+      columnWidth={Math.max(width - 16, this.graphWidth + 480)}
+      cellRenderer={this.renderVirtualRow}
       overscanRowCount={8}
-      style={{ overflowX: 'auto' }}
     />
   )
 
   private renderRow(row: IGraphRow): JSX.Element {
     const { commit } = row
+    const rowHeight = this.rowHeight
+    const columnWidth = this.columnWidth
+    const primaryRef = row.refs.find(ref => ref.isCurrent) ?? row.refs[0]
     const selected = this.state.selectedSha === commit.sha
     const q = this.state.filter.toLowerCase()
     const matching =
@@ -507,6 +553,7 @@ export class CommitGraph extends React.Component<
           matching ? '' : ' dimmed'
         }`}
         key={commit.sha}
+        style={{ height: rowHeight }}
       >
         <button
           className="commit-graph-commit"
@@ -518,14 +565,14 @@ export class CommitGraph extends React.Component<
         >
           <svg
             className="commit-graph-svg"
-            width={this.state.graph?.width || 54}
-            height={RowHeight}
+            width={this.graphWidth}
+            height={rowHeight}
             aria-hidden={true}
           >
             {row.connections.map((edge, i) => (
               <path
                 key={`lane-${i}`}
-                d={graphPath(edge.from, edge.to, 0, RowHeight)}
+                d={graphPath(edge.from, edge.to, 0, rowHeight, columnWidth)}
                 stroke={GraphColors[edge.color % GraphColors.length]}
                 strokeWidth={2}
                 fill="none"
@@ -533,7 +580,7 @@ export class CommitGraph extends React.Component<
             ))}
             {row.incoming && (
               <path
-                d={`M ${graphX(row.column)} 0 V ${RowHeight / 2}`}
+                d={`M ${graphX(row.column, columnWidth)} 0 V ${rowHeight / 2}`}
                 stroke={GraphColors[row.color % GraphColors.length]}
                 strokeWidth={2}
                 fill="none"
@@ -542,16 +589,22 @@ export class CommitGraph extends React.Component<
             {row.parentConnections.map((edge, i) => (
               <path
                 key={`parent-${i}`}
-                d={graphPath(edge.from, edge.to, RowHeight / 2, RowHeight)}
+                d={graphPath(
+                  edge.from,
+                  edge.to,
+                  rowHeight / 2,
+                  rowHeight,
+                  columnWidth
+                )}
                 stroke={GraphColors[edge.color % GraphColors.length]}
                 strokeWidth={2}
                 fill="none"
               />
             ))}
             <circle
-              cx={graphX(row.column)}
-              cy={RowHeight / 2}
-              r={row.refs.some(ref => ref.isCurrent) ? 6 : 4.5}
+              cx={graphX(row.column, columnWidth)}
+              cy={rowHeight / 2}
+              r={row.refs.some(ref => ref.isCurrent) ? 4 : 3}
               stroke={GraphColors[row.color % GraphColors.length]}
               strokeWidth={2}
               fill={
@@ -565,7 +618,7 @@ export class CommitGraph extends React.Component<
           <span className="commit-graph-summary">{commit.summary}</span>
         </button>
         <div className="commit-graph-ref-list">
-          {row.refs.map(ref => (
+          {(primaryRef === undefined ? [] : [primaryRef]).map(ref => (
             <button
               key={`${ref.kind}:${ref.name}`}
               className={`commit-graph-ref ${ref.kind}${
@@ -582,6 +635,17 @@ export class CommitGraph extends React.Component<
               {ref.name}
             </button>
           ))}
+          {row.refs.length > 1 && (
+            <button
+              type="button"
+              className="commit-graph-ref more-refs"
+              data-sha={commit.sha}
+              aria-label={`Show all ${row.refs.length} branches and tags`}
+              onClick={this.onMoreRefs}
+            >
+              +{row.refs.length - 1}
+            </button>
+          )}
         </div>
       </div>
     )
@@ -620,6 +684,14 @@ export class CommitGraph extends React.Component<
       <section id="commit-graph-view" aria-label="Commit graph">
         <header className="commit-graph-toolbar">
           <strong>All branches</strong>
+          <label className="commit-graph-density">
+            <input
+              type="checkbox"
+              checked={this.state.compact}
+              onChange={this.onCompactChanged}
+            />
+            Compact
+          </label>
           <input
             type="search"
             aria-label="Find commit, author, or branch"

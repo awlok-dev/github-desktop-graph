@@ -32,7 +32,7 @@ jobs:
         run: |
           node node_modules/typescript/bin/tsc --noEmit
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          node vendor/yarn-1.21.1.js test app/test/unit/git/commit-graph-test.ts app/test/unit/git/merge-test.ts
+          node vendor/yarn-1.21.1.js test app/test/unit/git/commit-graph-test.ts app/test/unit/git/merge-test.ts app/test/unit/git/diff-test.ts
       - run: node vendor/yarn-1.21.1.js build:portable
       - run: node vendor/yarn-1.21.1.js test:portable
       - run: node vendor/yarn-1.21.1.js package:portable

@@ -72,7 +72,38 @@ describe('commit graph', () => {
     assert.equal(graph.rows[0].parentConnections.length, 2)
     assert.equal(graph.rows[3].incoming, true)
     assert.equal(graph.rows[3].parentConnections.length, 0)
-    assert.ok(graph.width > 54)
+    assert.equal(graph.laneCount, 2)
+  })
+
+  it('keeps every lane and branch label in a many-parent merge', () => {
+    const parents = Array.from({ length: 64 }, (_, i) => `branch-${i}`)
+    const commits = [
+      { sha: 'merge', parents },
+      ...parents.map(sha => ({ sha, parents: ['root'] })),
+      { sha: 'root', parents: [] },
+    ].map(commit => ({
+      ...commit,
+      summary: commit.sha,
+      author: 'Test',
+      date: '2026-01-01',
+    }))
+    const refs = parents.map(sha => ({
+      sha,
+      ref: `refs/heads/${sha}`,
+      name: sha,
+      kind: 'local' as const,
+      isCurrent: false,
+    }))
+    const graph = layoutCommitGraph(commits, refs)
+    assert.equal(graph.laneCount, 64)
+    assert.equal(graph.rows[0].parentConnections.length, 64)
+    assert.equal(
+      new Set(graph.rows[0].parentConnections.map(edge => edge.to)).size,
+      64
+    )
+    assert.equal(graph.rows.flatMap(row => row.refs).length, 64)
+    assert.equal(graph.rows.at(-1)?.column, 0)
+    assert.deepEqual(graph.rows.at(-1)?.parentConnections, [])
   })
 
   it('fast-forwards by canonical branch ref and refuses divergence or changed checkout', async t => {

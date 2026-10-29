@@ -1,6 +1,12 @@
 import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
-import { mkdtempSync, mkdirSync, writeFileSync, existsSync } from 'node:fs'
+import {
+  mkdtempSync,
+  mkdirSync,
+  writeFileSync,
+  existsSync,
+  copyFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { _electron as electron } from 'playwright'
@@ -86,6 +92,55 @@ git([
 const mergeSha = git(['rev-parse', 'HEAD'])
 git(['checkout', 'main'])
 
+git(['checkout', '-b', 'image-demo', rootSha])
+const svgBefore =
+  '<svg xmlns="http://www.w3.org/2000/svg" width="800" height="500"><rect width="800" height="500" fill="#2454a0"/><circle cx="220" cy="250" r="130" fill="#ffc857"/></svg>'
+copyFileSync(
+  path.join(root, 'app/static/common/logo-64x64@2x.png'),
+  path.join(repo, 'preview.PNG')
+)
+writeFileSync(path.join(repo, 'drawing.svg'), svgBefore)
+git(['add', '--', '.'])
+git(['-c', 'commit.gpgsign=false', 'commit', '-m', 'Add preview images'])
+const imageAddedSha = git(['rev-parse', 'HEAD'])
+copyFileSync(
+  path.join(root, 'app/static/common/windows-logo-64x64@2x.png'),
+  path.join(repo, 'preview.PNG')
+)
+writeFileSync(
+  path.join(repo, 'drawing.svg'),
+  svgBefore.replace('220', '520').replace('#2454a0', '#793e90')
+)
+git(['add', '--', '.'])
+git(['-c', 'commit.gpgsign=false', 'commit', '-m', 'Change preview images'])
+const imageChangedSha = git(['rev-parse', 'HEAD'])
+git(['mv', 'drawing.svg', 'renamed.svg'])
+git(['-c', 'commit.gpgsign=false', 'commit', '-m', 'Rename preview image'])
+const imageRenamedSha = git(['rev-parse', 'HEAD'])
+git(['rm', 'preview.PNG', 'renamed.svg'])
+git(['-c', 'commit.gpgsign=false', 'commit', '-m', 'Delete preview images'])
+const imageDeletedSha = git(['rev-parse', 'HEAD'])
+git(['checkout', 'main'])
+
+const rootTree = git(['rev-parse', `${rootSha}^{tree}`])
+const denseParents = Array.from({ length: 64 }, (_, index) => {
+  const name = `stress/branch-${String(index).padStart(2, '0')}`
+  const sha = git(['commit-tree', rootTree, '-p', rootSha, '-m', name])
+  git(['branch', name, sha])
+  return sha
+})
+const denseSha = git([
+  'commit-tree',
+  rootTree,
+  ...denseParents.flatMap(sha => ['-p', sha]),
+  '-m',
+  'Many branch merge',
+])
+git(['branch', 'dense-merge', denseSha])
+for (let index = 0; index < 40; index++) {
+  git(['branch', `alias/${String(index).padStart(2, '0')}`, denseSha])
+}
+
 git(['init', '--bare', remote])
 git(['remote', 'add', 'origin', remote])
 git(['push', '-u', 'origin', 'main'])
@@ -133,10 +188,7 @@ try {
   }
   await page.locator('#graph-tab').click()
   await page.locator('#commit-graph-view').waitFor({ state: 'visible' })
-  await page
-    .getByText('Graph feature commit', { exact: true })
-    .first()
-    .waitFor()
+  await page.getByText('Many branch merge', { exact: true }).first().waitFor()
   assert.equal(
     await page
       .getByRole('tab', { name: 'Graph', exact: true })
@@ -158,14 +210,33 @@ try {
   )
   async function selectCommit(sha) {
     const button = page.locator(`.commit-graph-commit[data-sha="${sha}"]`)
+    const settleScroll = () =>
+      page.evaluate(
+        () =>
+          new Promise(resolve =>
+            requestAnimationFrame(() => requestAnimationFrame(resolve))
+          )
+      )
     await graphScroller.evaluate(element => {
       element.scrollTop = 0
+      element.scrollLeft = 0
     })
+    await settleScroll()
     await waitFor(async () => {
-      if (await button.count()) return true
+      const bounds = (await button.count()) ? await button.boundingBox() : null
+      const viewport = await graphScroller.boundingBox()
+      if (
+        bounds &&
+        viewport &&
+        bounds.y + bounds.height / 2 >= viewport.y &&
+        bounds.y + bounds.height / 2 < viewport.y + viewport.height - 16
+      ) {
+        return true
+      }
       await graphScroller.evaluate(element => {
         element.scrollTop += 150
       })
+      await settleScroll()
       return false
     }, `find graph commit ${sha}`)
     await button.click()
@@ -180,6 +251,110 @@ try {
       `diff shows ${text}`
     )
   }
+
+  await selectCommit(denseSha)
+  const selectedRow = page.locator('.commit-graph-row.selected')
+  assert.equal((await selectedRow.boundingBox()).height, 28)
+  const compactWidth = await selectedRow.locator('svg').getAttribute('width')
+  assert.ok(Number(compactWidth) < 900)
+  const compactToggle = page.getByRole('checkbox', {
+    name: 'Compact',
+    exact: true,
+  })
+  await compactToggle.uncheck()
+  await waitFor(
+    async () => (await selectedRow.boundingBox()).height === 38,
+    'roomy graph spacing'
+  )
+  await compactToggle.check()
+  await waitFor(
+    async () => (await selectedRow.boundingBox()).height === 28,
+    'compact graph spacing'
+  )
+  await graphScroller.evaluate(element => {
+    element.scrollLeft = element.scrollWidth
+  })
+  await waitFor(
+    async () =>
+      await graphScroller.evaluate(element => element.scrollLeft > 100),
+    'wide graph scrolls horizontally'
+  )
+  const viewport = await graphScroller.boundingBox()
+  const summaryBounds = await selectedRow
+    .locator('.commit-graph-summary')
+    .boundingBox()
+  assert.ok(
+    summaryBounds.x >= viewport.x &&
+      summaryBounds.x + summaryBounds.width <= viewport.x + viewport.width
+  )
+  await page.screenshot({
+    path: path.join(root, 'dist', 'portable-graph-many-branches.png'),
+  })
+
+  async function assertImages(count) {
+    await waitFor(async () => {
+      const images = details.locator('.panel.image img')
+      return (
+        (await images.count()) === count &&
+        (await images.evaluateAll(elements =>
+          elements.every(
+            element =>
+              element.complete &&
+              element.naturalWidth > 0 &&
+              element.getBoundingClientRect().width > 0
+          )
+        ))
+      )
+    }, `${count} image previews loaded`)
+  }
+  await selectCommit(imageChangedSha)
+  await selectFile('preview.PNG')
+  await details.getByRole('tab', { name: 'Side by side', exact: true }).click()
+  await assertImages(2)
+  const imageSources = await details
+    .locator('.panel.image img')
+    .evaluateAll(images => images.map(image => image.src))
+  assert.notEqual(imageSources[0], imageSources[1])
+  await page.screenshot({
+    path: path.join(root, 'dist', 'portable-graph-image-side-by-side.png'),
+  })
+  await selectFile('drawing.svg')
+  await assertImages(2)
+  await details.getByRole('tab', { name: 'Onion Skin', exact: true }).click()
+  await assertImages(2)
+  const opacity = details.getByRole('slider', {
+    name: 'Image overlay opacity',
+    exact: true,
+  })
+  assert.equal(await opacity.inputValue(), '50')
+  await page.screenshot({
+    path: path.join(root, 'dist', 'portable-graph-image-onion-skin.png'),
+  })
+  await opacity.press('Home')
+  await waitFor(
+    async () =>
+      (await details
+        .locator('.image-diff-onion-skin .image-diff-current')
+        .evaluate(element => element.style.opacity)) === '0',
+    'onion skin shows old image'
+  )
+  await opacity.press('End')
+  await waitFor(
+    async () =>
+      (await details
+        .locator('.image-diff-onion-skin .image-diff-current')
+        .evaluate(element => element.style.opacity)) === '1',
+    'onion skin shows new image'
+  )
+  await selectCommit(imageAddedSha)
+  await selectFile('preview.PNG')
+  await assertImages(1)
+  await selectCommit(imageRenamedSha)
+  await selectFile('renamed.svg')
+  await assertImages(2)
+  await selectCommit(imageDeletedSha)
+  await selectFile('preview.PNG')
+  await assertImages(1)
 
   // Inspect a commit on another branch without checking out that branch.
   await selectCommit(changesSha)
@@ -259,6 +434,7 @@ try {
     }
   })
   async function menu(branch, label) {
+    await selectCommit(git(['rev-parse', branch]))
     await waitFor(
       () =>
         page
@@ -282,6 +458,17 @@ try {
       `menu ${label}`
     )
   }
+  await selectCommit(denseSha)
+  await page.locator('.commit-graph-row.selected .more-refs').click()
+  await waitFor(
+    async () =>
+      (await app.evaluate(() => globalThis.graphMenuLabels ?? [])).length ===
+      41,
+    'all shared branch labels are accessible'
+  )
+  assert.ok(
+    (await app.evaluate(() => globalThis.graphMenuLabels)).includes('alias/39')
+  )
   await menu('feature', 'Merge feature into current branch')
   await page
     .locator('dialog')
@@ -329,7 +516,7 @@ try {
   assert.ok(existsSync(data))
   assert.equal(existsSync(path.join(appRoot, 'Data')), false)
   console.log(
-    'PASS: Graph tab, changed files and diffs (root, other branch, merge, empty, rename, deletion, binary, fast selection), native menus, fast-forward, rebase, push, and portable storage without external Git/Node on PATH'
+    'PASS: compact graph with 64 lanes and 41 shared refs, horizontal scrolling, PNG/SVG image previews and onion skin, commit diffs, native menus, fast-forward, rebase, push, and portable storage without external Git/Node on PATH'
   )
 } catch (error) {
   if (page) {
